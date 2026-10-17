@@ -9,6 +9,8 @@ The protocol was reverse engineered from the Sanitas HealthCoach Android app (v3
 
 ## What you get
 
+<img src="docs/images/device.png" alt="The scale's device page in Home Assistant" width="347">
+
 - Weight, BMI, body fat, body water, muscle, bone mass, basal metabolism, impedance (disabled by default)
 - Battery level and the time of the last measurement
 - A Sync button
