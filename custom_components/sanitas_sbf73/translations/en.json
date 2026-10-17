@@ -1,0 +1,113 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "data": {
+          "address": "Scale"
+        }
+      },
+      "wake": {
+        "title": "Wake up the scale",
+        "description": "Step briefly on the {name} scale so its display lights up, then submit. Home Assistant will pair with it. If the scale shows a code, you will be asked for it."
+      },
+      "passkey": {
+        "title": "Pairing code",
+        "description": "Type the code shown on the scale display.",
+        "data": {
+          "passkey": "Code"
+        }
+      },
+      "connect_failed": {
+        "title": "Connection failed",
+        "description": "Could not connect or pair: {error}\n\nWake the scale up (step on it briefly) and submit to retry."
+      },
+      "select_user": {
+        "title": "User",
+        "description": "Pick your user on the scale, or create a new one (8 users max).",
+        "data": {
+          "user": "User"
+        }
+      },
+      "pin": {
+        "title": "User PIN",
+        "description": "The scale now shows a 4-digit PIN for this user. Type it here.",
+        "data": {
+          "pin": "PIN"
+        }
+      },
+      "new_user": {
+        "title": "New user",
+        "description": "The scale needs these values to compute body composition. {error}",
+        "data": {
+          "initials": "Initials (3 letters, shown on the scale)",
+          "birth_date": "Date of birth",
+          "height": "Height",
+          "gender": "Gender",
+          "activity_level": "Activity level"
+        },
+        "data_description": {
+          "activity_level": "1 = little or no activity, 2 = light effort (walking, gardening), 3 = moderate effort 2 to 4 times a week, 4 = intense effort 4 to 6 times a week, 5 = intensive training or hard physical work, at least 1 h a day"
+        }
+      }
+    },
+    "progress": {
+      "connect": "Connecting to the scale and pairing...",
+      "measure": "Step on the scale now, barefoot, for a first measurement. It teaches the scale to recognize you."
+    },
+    "error": {
+      "invalid_passkey": "The code is made of 6 digits at most.",
+      "wrong_pin": "Wrong PIN.",
+      "cannot_connect": "Lost the connection to the scale. Wake it up and retry.",
+      "register_failed": "The scale refused the new user."
+    },
+    "abort": {
+      "already_configured": "This scale is already configured.",
+      "no_devices_found": "No SBF73 scale found. Step on it briefly to wake it up and retry."
+    }
+  },
+  "selector": {
+    "gender": {
+      "options": {
+        "male": "Male",
+        "female": "Female"
+      }
+    }
+  },
+  "entity": {
+    "button": {
+      "sync": {
+        "name": "Sync"
+      }
+    },
+    "sensor": {
+      "weight": {
+        "name": "Weight"
+      },
+      "bmi": {
+        "name": "BMI"
+      },
+      "body_fat": {
+        "name": "Body fat"
+      },
+      "body_water": {
+        "name": "Body water"
+      },
+      "muscle": {
+        "name": "Muscle"
+      },
+      "bone_mass": {
+        "name": "Bone mass"
+      },
+      "bmr": {
+        "name": "Basal metabolism"
+      },
+      "impedance": {
+        "name": "Impedance"
+      },
+      "last_measurement": {
+        "name": "Last measurement"
+      }
+    }
+  }
+}

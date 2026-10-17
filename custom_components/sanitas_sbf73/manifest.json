@@ -1,0 +1,19 @@
+{
+  "domain": "sanitas_sbf73",
+  "name": "Sanitas SBF73",
+  "bluetooth": [
+    {
+      "local_name": "SBF73*",
+      "connectable": true
+    }
+  ],
+  "codeowners": ["@fclairamb"],
+  "config_flow": true,
+  "dependencies": ["bluetooth_adapters"],
+  "documentation": "https://github.com/fclairamb/ha-sanitas-sbf73",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/fclairamb/ha-sanitas-sbf73/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

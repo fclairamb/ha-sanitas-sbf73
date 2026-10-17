@@ -1,0 +1,113 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "data": {
+          "address": "Pèse-personne"
+        }
+      },
+      "wake": {
+        "title": "Réveiller la balance",
+        "description": "Monte brièvement sur la balance {name} pour allumer son écran, puis valide. Home Assistant va s'appairer avec elle. Si la balance affiche un code, il te sera demandé."
+      },
+      "passkey": {
+        "title": "Code d'appairage",
+        "description": "Saisis le code affiché sur l'écran de la balance.",
+        "data": {
+          "passkey": "Code"
+        }
+      },
+      "connect_failed": {
+        "title": "Connexion impossible",
+        "description": "Connexion ou appairage impossible : {error}\n\nRéveille la balance (monte brièvement dessus) et valide pour réessayer."
+      },
+      "select_user": {
+        "title": "Utilisateur",
+        "description": "Choisis ton utilisateur sur la balance, ou crées-en un nouveau (8 au maximum).",
+        "data": {
+          "user": "Utilisateur"
+        }
+      },
+      "pin": {
+        "title": "Code PIN",
+        "description": "La balance affiche maintenant un code PIN à 4 chiffres pour cet utilisateur. Saisis-le ici.",
+        "data": {
+          "pin": "Code PIN"
+        }
+      },
+      "new_user": {
+        "title": "Nouvel utilisateur",
+        "description": "La balance a besoin de ces valeurs pour calculer la composition corporelle. {error}",
+        "data": {
+          "initials": "Initiales (3 lettres, affichées sur la balance)",
+          "birth_date": "Date de naissance",
+          "height": "Taille",
+          "gender": "Sexe",
+          "activity_level": "Niveau d'activité"
+        },
+        "data_description": {
+          "activity_level": "1 = peu ou pas d'activité, 2 = efforts doux (marche, jardinage), 3 = efforts modérés 2 à 4 fois par semaine, 4 = efforts intenses 4 à 6 fois par semaine, 5 = entraînement intensif ou travail physique, au moins 1 h par jour"
+        }
+      }
+    },
+    "progress": {
+      "connect": "Connexion à la balance et appairage...",
+      "measure": "Monte sur la balance maintenant, pieds nus, pour une première mesure. Elle lui apprend à te reconnaître."
+    },
+    "error": {
+      "invalid_passkey": "Le code fait 6 chiffres au maximum.",
+      "wrong_pin": "Code PIN erroné.",
+      "cannot_connect": "Connexion à la balance perdue. Réveille-la et réessaie.",
+      "register_failed": "La balance a refusé le nouvel utilisateur."
+    },
+    "abort": {
+      "already_configured": "Cette balance est déjà configurée.",
+      "no_devices_found": "Aucune balance SBF73 trouvée. Monte brièvement dessus pour la réveiller et réessaie."
+    }
+  },
+  "selector": {
+    "gender": {
+      "options": {
+        "male": "Homme",
+        "female": "Femme"
+      }
+    }
+  },
+  "entity": {
+    "button": {
+      "sync": {
+        "name": "Synchroniser"
+      }
+    },
+    "sensor": {
+      "weight": {
+        "name": "Poids"
+      },
+      "bmi": {
+        "name": "IMC"
+      },
+      "body_fat": {
+        "name": "Masse grasse"
+      },
+      "body_water": {
+        "name": "Eau corporelle"
+      },
+      "muscle": {
+        "name": "Muscle"
+      },
+      "bone_mass": {
+        "name": "Masse osseuse"
+      },
+      "bmr": {
+        "name": "Métabolisme de base"
+      },
+      "impedance": {
+        "name": "Impédance"
+      },
+      "last_measurement": {
+        "name": "Dernière mesure"
+      }
+    }
+  }
+}
