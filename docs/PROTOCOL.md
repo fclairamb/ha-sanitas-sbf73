@@ -110,7 +110,7 @@ Observed on a real SBF73 (idle, nobody on it, 01:42), via `bluetoothctl`:
 | field | value |
 |---|---|
 | Name | `SBF73` |
-| Address | `F6:13:F7:E4:90:C5` (public) |
+| Address | `AA:BB:CC:DD:EE:FF` (public) |
 | Appearance | `0x0C80` (Generic Weight Scale) |
 | Flags | `0x06` (LE General Discoverable, BR/EDR not supported) |
 | 16-bit service UUIDs | `0x181D` only |
