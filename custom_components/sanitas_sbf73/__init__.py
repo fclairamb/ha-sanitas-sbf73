@@ -121,6 +121,16 @@ class Sbf73Coordinator:
             client = Sbf73Client(ble_device, self.async_add_measurement)
             try:
                 await client.connect()
+                # Like the app: check our user still exists, and log its profile
+                # (the scale needs it to compute body composition).
+                users = await client.list_users()
+                _LOGGER.debug("Users on the scale: %s", users)
+                if self.entry.data[CONF_USER_INDEX] not in [u.index for u in users]:
+                    _LOGGER.error(
+                        "User %s is no longer on the scale: remove and re-add the integration",
+                        self.entry.data[CONF_USER_INDEX],
+                    )
+                    return
                 if not await client.consent(
                     self.entry.data[CONF_USER_INDEX], self.entry.data[CONF_CONSENT_CODE]
                 ):
