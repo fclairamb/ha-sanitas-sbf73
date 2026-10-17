@@ -636,6 +636,30 @@ rewrite step 9 data. CONFIRMED.
 Derived metrics to publish: water % = water mass / weight; bone = weight − fat mass − soft lean mass;
 BMR either from the scale (kJ / 4.1868) or Mifflin like the app.
 
+## 8.3 Behaviour observed on a real SBF73 (2026-10-17) — OBSERVED
+
+- **Wake-up signal.** Idle, the scale advertises every few seconds with an empty Service Data AD
+  for 0x181D (`03 16 1D 18`). Woken up by a weighing, it advertises every ~200 ms and the service
+  data becomes `01` (`04 16 1D 18 01`). Manufacturer data (`0x0613: 01 00`) never changes. This is
+  the trigger to connect. Home Assistant's `async_register_callback` does not fire on unchanged
+  advertisements, so use `async_register_advertisement_callback`.
+- **Idle scale refuses GATT writes.** CCCD writes fail with ATT error 0x0E (Unlikely Error) when
+  nobody is on the scale. Connect only while it is awake.
+- **Pending measurement comes with the consent.** Order seen: user list `00` → records + `01` →
+  Consent written → Weight Measurement + Body Composition indications (~350 ms later) → UCP
+  response `20 02 01`. A weighing with socks gives a Body Composition packet with all values at 0.
+- **Repeat loop.** After one full weighing (with body composition) the scale re-sent the same
+  weight + body composition pair every ~270 ms for 49 s, and only then answered the consent.
+  Deduplicate measurements and wait up to ~70 s for the consent answer.
+- **Measurements are delivered once.** A measurement already delivered to a connection is not
+  sent again on the next consent.
+- **BlueZ auto-connect.** Each `Device1.Connect` turns auto-connect on for the bonded scale and
+  only `Device1.Disconnect` turns it off (untrusted device). If the scale drops the link first,
+  BlueZ reconnects it at its next wake-up, receives the measurement and acknowledges it with no
+  client listening: the measurement is lost. Always call `Device1.Disconnect` after a session.
+- **One client only.** The scale takes a single connection and stops advertising while connected.
+  Two clients polling it (e.g. ble-scale-sync and this integration) steal each other's measurements.
+
 ## 9. Open questions
 
 1. Bonding: passkey entry is inferred from the "enter the correct code" alert; Just Works vs passkey and the

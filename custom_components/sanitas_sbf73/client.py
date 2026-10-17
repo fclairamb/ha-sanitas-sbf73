@@ -27,6 +27,9 @@ NOTIFY_ORDER = (
 )
 NOTIFY_DELAY_S = 0.5
 RESPONSE_TIMEOUT_S = 10
+# The scale answers the consent only after it has sent the pending measurement,
+# which it may repeat for up to a minute.
+CONSENT_TIMEOUT_S = 70
 
 
 class ScaleError(Exception):
@@ -51,6 +54,7 @@ class Sbf73Client:
         self._last_packet = 0.0
         self._last_notify: tuple[str, bytes] | None = None
         self._last_notify_at = 0.0
+        self._last_emitted: p.Measurement | None = None
         self._disconnected = asyncio.Event()
 
     @property
@@ -112,7 +116,9 @@ class Sbf73Client:
 
     async def consent(self, user_index: int, consent_code: int, attempts: int = 1) -> bool:
         for _ in range(attempts):
-            resp = await self._ucp_request(p.build_consent(user_index, consent_code))
+            resp = await self._ucp_request(
+                p.build_consent(user_index, consent_code), CONSENT_TIMEOUT_S
+            )
             if resp.ok:
                 return True
             if resp.result != p.UCP_USER_NOT_AUTHORIZED:
@@ -171,11 +177,13 @@ class Sbf73Client:
             except TimeoutError:
                 pass
 
-    async def _ucp_request(self, payload: bytes) -> p.UcpResponse:
+    async def _ucp_request(
+        self, payload: bytes, timeout: float = RESPONSE_TIMEOUT_S
+    ) -> p.UcpResponse:
         _drain(self._ucp)
         await self._write(p.CHR_USER_CONTROL_POINT, payload)
         while True:
-            resp = await self._get(self._ucp)
+            resp = await self._get(self._ucp, timeout)
             if resp.request == payload[0]:
                 return resp
 
@@ -185,12 +193,12 @@ class Sbf73Client:
         _LOGGER.debug("Write %s: %s", uuid[4:8], payload.hex())
         await self._client.write_gatt_char(uuid, payload, response=True)
 
-    async def _get(self, queue: asyncio.Queue):
+    async def _get(self, queue: asyncio.Queue, timeout: float = RESPONSE_TIMEOUT_S):
         get = asyncio.ensure_future(queue.get())
         gone = asyncio.ensure_future(self._disconnected.wait())
         try:
             done, _ = await asyncio.wait(
-                {get, gone}, timeout=RESPONSE_TIMEOUT_S, return_when=asyncio.FIRST_COMPLETED
+                {get, gone}, timeout=timeout, return_when=asyncio.FIRST_COMPLETED
             )
         finally:
             gone.cancel()
@@ -237,7 +245,12 @@ class Sbf73Client:
             self._pending = None
 
     def _emit(self, m: p.Measurement) -> None:
-        if self._on_measurement is not None and m.weight_kg is not None:
+        # After a full weighing, the scale can repeat the same measurement every
+        # 270 ms for up to a minute (seen 2026-10-17): deliver it once.
+        if m.weight_kg is None or m == self._last_emitted:
+            return
+        self._last_emitted = m
+        if self._on_measurement is not None:
             self._on_measurement(m)
 
 

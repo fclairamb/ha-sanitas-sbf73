@@ -157,8 +157,10 @@ class Sbf73Coordinator:
             if m.timestamp
             else dt_util.now()
         )
-        if self._last_ts is not None and ts < self._last_ts:
-            return  # older than what we have
+        if self._last_ts is not None and (
+            ts < self._last_ts or (ts == self._last_ts and m == self.measurement)
+        ):
+            return  # older than, or the same as, what we have
         _LOGGER.debug("New measurement at %s: %s", ts, m)
         self.measurement = m
         self.measured_at = ts
