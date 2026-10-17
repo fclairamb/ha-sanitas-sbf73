@@ -11,7 +11,7 @@ from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak.backends.device import BLEDevice
 from bleak_retry_connector import BleakClientWithServiceCache, establish_connection
 
-from . import protocol as p
+from . import bluez, protocol as p
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -49,6 +49,8 @@ class Sbf73Client:
         self._take: asyncio.Queue[int] = asyncio.Queue()
         self._pending: p.Measurement | None = None
         self._last_packet = 0.0
+        self._last_notify: tuple[str, bytes] | None = None
+        self._last_notify_at = 0.0
         self._disconnected = asyncio.Event()
 
     @property
@@ -77,6 +79,10 @@ class Sbf73Client:
         if self._client is not None:
             await self._client.disconnect()
             self._client = None
+        try:
+            await bluez.async_disconnect(self._device.address)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("BlueZ Disconnect failed: %s", err)
 
     async def list_users(self) -> list[p.ScaleUser]:
         _drain(self._user_list)
@@ -195,6 +201,12 @@ class Sbf73Client:
 
     def _handle(self, char: BleakGATTCharacteristic, data: bytearray) -> None:
         uuid = char.uuid.lower()
+        # BlueZ delivers every notification twice on this scale: drop the copy.
+        now = asyncio.get_running_loop().time()
+        key = (uuid, bytes(data))
+        if key == self._last_notify and now - self._last_notify_at < 1:
+            return
+        self._last_notify, self._last_notify_at = key, now
         _LOGGER.debug("Notify %s: %s", uuid[4:8], bytes(data).hex())
         try:
             if uuid == p.CHR_USER_CONTROL_POINT:

@@ -223,6 +223,9 @@ def parse_body_composition(data: bytes) -> Measurement:
     if flags & 0x0800:
         raw_height = r.u16()
         m.height_m = round(raw_height * 0.1 * 0.0254 if imperial else raw_height * 0.001, 3)
+    if not m.fat_pct and not m.impedance_ohm:
+        # All zeros: the scale could not measure impedance (socks, dry feet).
+        return Measurement(timestamp=m.timestamp, user_index=m.user_index)
     return m
 
 

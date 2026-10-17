@@ -14,6 +14,7 @@ from homeassistant.const import CONF_ADDRESS, Platform
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.util import dt as dt_util
 
+from . import bluez
 from .client import Sbf73Client
 from .const import (
     CONF_CONSENT_CODE,
@@ -21,10 +22,9 @@ from .const import (
     CONF_USER_INDEX,
     DOMAIN,
     IDLE_TIMEOUT_S,
-    MANUFACTURER_ID,
     QUIET_S,
     SYNC_COOLDOWN_S,
-    SYNC_INTERVAL_S,
+    WSS_SERVICE_UUID,
 )
 from .protocol import Measurement
 
@@ -41,15 +41,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: Sbf73ConfigEntry) -> boo
     for m in hass.data.get(DOMAIN, {}).pop(coordinator.address, []):
         coordinator.async_add_measurement(m)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    # Unlike async_register_callback, this fires on every advertisement, even
+    # unchanged ones: the scale's advertisement never changes.
     entry.async_on_unload(
-        bluetooth.async_register_callback(
-            hass,
-            coordinator.async_advertisement,
-            bluetooth.BluetoothCallbackMatcher(address=coordinator.address, connectable=True),
-            bluetooth.BluetoothScanningMode.ACTIVE,
+        bluetooth.async_register_advertisement_callback(
+            hass, coordinator.async_advertisement, coordinator.address
         )
     )
+    # BlueZ may already hold the scale (auto-connect): release it so it advertises.
+    entry.async_create_background_task(
+        hass, _async_release(coordinator.address), "sanitas_sbf73 release"
+    )
     return True
+
+
+async def _async_release(address: str) -> None:
+    try:
+        await bluez.async_disconnect(address)
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.debug("BlueZ Disconnect failed: %s", err)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: Sbf73ConfigEntry) -> bool:
@@ -70,7 +80,7 @@ class Sbf73Coordinator:
         self._listeners: list[CALLBACK_TYPE] = []
         self._lock = asyncio.Lock()
         self._last_attempt = 0.0
-        self._last_adv: bytes | None = None
+        self._last_service_data: bytes | None = None
         last = entry.data.get(CONF_LAST_TIMESTAMP)
         self._last_ts = dt_util.parse_datetime(last) if last else None
 
@@ -80,29 +90,17 @@ class Sbf73Coordinator:
         return lambda: self._listeners.remove(update)
 
     @callback
-    def async_advertisement(
-        self, info: bluetooth.BluetoothServiceInfoBleak, change: bluetooth.BluetoothChange
-    ) -> None:
-        # The scale advertises all the time, even idle. Connect when its
-        # advertisement changes (woken up, new measurement), otherwise rarely.
-        adv = info.manufacturer_data.get(MANUFACTURER_ID, b"") + "".join(
-            sorted(info.service_uuids)
-        ).encode()
-        changed = self._last_adv is not None and adv != self._last_adv
-        if adv != self._last_adv:
-            _LOGGER.debug(
-                "Advertisement: manufacturer data %s, services %s, RSSI %s",
-                info.manufacturer_data.get(MANUFACTURER_ID, b"").hex(),
-                info.service_uuids,
-                info.rssi,
-            )
-            self._last_adv = adv
-        # Count from the last attempt, not the last success: a scale that keeps
-        # refusing must not be hammered (it runs on batteries).
-        since = time.monotonic() - self._last_attempt
-        if self._lock.locked() or since < SYNC_COOLDOWN_S:
+    def async_advertisement(self, info: bluetooth.BluetoothServiceInfoBleak) -> None:
+        # Idle, the scale advertises an empty Weight Scale service data and refuses
+        # GATT writes. Woken up by a weighing, it advertises every 200 ms and the
+        # service data becomes 01: that's when we connect.
+        data = info.service_data.get(WSS_SERVICE_UUID)
+        if data != self._last_service_data:
+            _LOGGER.debug("Weight Scale service data: %s (RSSI %s)", data and data.hex(), info.rssi)
+            self._last_service_data = data
+        if not data or self._lock.locked():
             return
-        if not changed and self._last_attempt and since < SYNC_INTERVAL_S:
+        if time.monotonic() - self._last_attempt < SYNC_COOLDOWN_S:
             return
         self.entry.async_create_background_task(
             self.hass, self.async_sync(), f"sanitas_sbf73 sync {self.address}"
@@ -149,8 +147,8 @@ class Sbf73Coordinator:
             if m.timestamp
             else dt_util.now()
         )
-        if self._last_ts is not None and ts <= self._last_ts:
-            return  # already seen: the scale may resend its history
+        if self._last_ts is not None and ts < self._last_ts:
+            return  # older than what we have
         _LOGGER.debug("New measurement at %s: %s", ts, m)
         self.measurement = m
         self.measured_at = ts

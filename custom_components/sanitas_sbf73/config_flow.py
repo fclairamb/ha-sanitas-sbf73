@@ -21,7 +21,7 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from . import protocol as p
-from .agent import PasskeyAgent
+from .bluez import PasskeyAgent
 from .client import ScaleError, Sbf73Client
 from .const import CONF_CONSENT_CODE, CONF_USER_INDEX, DOMAIN
 

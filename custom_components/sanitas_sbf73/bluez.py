@@ -1,8 +1,9 @@
-"""Minimal BlueZ pairing agent, registered only while the config flow pairs the scale.
+"""Direct BlueZ D-Bus calls the bleak API doesn't cover.
 
-Home Assistant registers no BlueZ agent, so a pairing that asks for a passkey would
-fail. This agent forwards the passkey request to the config flow, where the user
-types the code shown on the scale display.
+- A minimal pairing agent, registered only while the config flow pairs the scale.
+  Home Assistant registers no BlueZ agent, so a pairing that asks for a passkey would
+  fail. The agent forwards the request to the config flow, where the user types it.
+- An explicit Device1.Disconnect, see async_disconnect().
 """
 
 import asyncio
@@ -96,3 +97,36 @@ class PasskeyAgent(ServiceInterface):
     @dbus_method()
     def Cancel(self) -> None:  # noqa: N802
         _LOGGER.debug("Pairing cancelled by BlueZ")
+
+
+async def async_disconnect(address: str) -> None:
+    """Call Device1.Disconnect for the device with this address.
+
+    Every Device1.Connect turns BlueZ auto-connect on for a bonded device, and only
+    Device1.Disconnect turns it off again (for an untrusted device). When the scale
+    drops the link first, bleak never calls Disconnect, so BlueZ grabs the scale
+    each time it wakes up. The scale then stops advertising and we never see it.
+    """
+    bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
+    try:
+        reply = await bus.call(
+            Message(
+                destination="org.bluez",
+                path="/",
+                interface="org.freedesktop.DBus.ObjectManager",
+                member="GetManagedObjects",
+            )
+        )
+        for path, interfaces in reply.body[0].items():
+            device = interfaces.get("org.bluez.Device1")
+            if device and device["Address"].value.upper() == address.upper():
+                await bus.call(
+                    Message(
+                        destination="org.bluez",
+                        path=path,
+                        interface="org.bluez.Device1",
+                        member="Disconnect",
+                    )
+                )
+    finally:
+        bus.disconnect()

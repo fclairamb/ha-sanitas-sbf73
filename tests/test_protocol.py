@@ -30,6 +30,11 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(m.water_mass_kg, 45.0)
         self.assertEqual(m.impedance_ohm, 520.0)
 
+    def test_body_composition_failed(self):
+        m = p.parse_body_composition(bytes.fromhex("9803" + "00" * 12))
+        self.assertIsNone(m.fat_pct)
+        self.assertIsNone(m.water_mass_kg)
+
     def test_merge_and_derived(self):
         m = p.parse_weight(bytes.fromhex("0eb23eea070a11072d0001f8000807"))
         m.merge(p.parse_body_composition(bytes.fromhex("9803e100841c7e01b42d28235014")))

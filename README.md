@@ -31,9 +31,13 @@ setup does not work through ESPHome Bluetooth proxies.
 
 ## How syncing works
 
-The scale advertises all the time, even idle. The integration connects when the advertisement
-changes, otherwise at most once an hour, or when you press Sync. After the PIN consent, the scale
-sends the measurements it stored for your user.
+Idle, the scale advertises all the time with an empty Weight Scale service data, and refuses
+GATT writes. When you step on it, it advertises every 200 ms and the service data becomes
+`01`. The integration connects at that moment, sends the PIN consent and receives the
+measurement. The Sync button does the same on demand, while the scale is awake.
+
+After each session the integration calls BlueZ `Device1.Disconnect` itself. Without it, BlueZ
+keeps auto-connecting the bonded scale every time it wakes up, and the scale stops advertising.
 
 ## Tests
 
