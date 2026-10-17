@@ -156,6 +156,8 @@ class Sbf73Sensor(RestoreSensor):
         await super().async_added_to_hass()
         if (last := await self.async_get_last_sensor_data()) is not None:
             self._attr_native_value = last.native_value
+        if (value := self.entity_description.value_fn(self.coordinator)) is not None:
+            self._attr_native_value = value
         self.async_on_remove(self.coordinator.async_add_listener(self._update))
 
     @callback

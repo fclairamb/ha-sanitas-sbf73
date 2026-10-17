@@ -64,6 +64,7 @@ class Sbf73ConfigFlow(ConfigFlow, domain=DOMAIN):
         self._user_index: int | None = None
         self._consent_code: int | None = None
         self._measured = asyncio.Event()
+        self._measurements: list[p.Measurement] = []
 
     async def async_step_bluetooth(
         self, discovery_info: BluetoothServiceInfoBleak
@@ -273,6 +274,7 @@ class Sbf73ConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         await self._async_disconnect()
+        self.hass.data.setdefault(DOMAIN, {})[self._address] = self._measurements
         return self.async_create_entry(
             title=f"{self._name} P{self._user_index}",
             data={
@@ -327,6 +329,9 @@ class Sbf73ConfigFlow(ConfigFlow, domain=DOMAIN):
     @callback
     def _on_measurement(self, m: p.Measurement) -> None:
         _LOGGER.debug("Measurement during setup: %s", m)
+        # The scale sends pending measurements right after consent: hand them
+        # over to the config entry instead of losing them.
+        self._measurements.append(m)
         self._measured.set()
 
     async def _async_disconnect(self) -> None:

@@ -19,6 +19,7 @@ from .const import (
     CONF_CONSENT_CODE,
     CONF_LAST_TIMESTAMP,
     CONF_USER_INDEX,
+    DOMAIN,
     IDLE_TIMEOUT_S,
     MANUFACTURER_ID,
     QUIET_S,
@@ -37,6 +38,8 @@ type Sbf73ConfigEntry = ConfigEntry[Sbf73Coordinator]
 async def async_setup_entry(hass: HomeAssistant, entry: Sbf73ConfigEntry) -> bool:
     coordinator = Sbf73Coordinator(hass, entry)
     entry.runtime_data = coordinator
+    for m in hass.data.get(DOMAIN, {}).pop(coordinator.address, []):
+        coordinator.async_add_measurement(m)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(
         bluetooth.async_register_callback(
@@ -117,7 +120,7 @@ class Sbf73Coordinator:
             if ble_device is None:
                 _LOGGER.debug("Scale %s not in range", self.address)
                 return
-            client = Sbf73Client(ble_device, self._on_measurement)
+            client = Sbf73Client(ble_device, self.async_add_measurement)
             try:
                 await client.connect()
                 if not await client.consent(
@@ -138,7 +141,7 @@ class Sbf73Coordinator:
             self._notify()
 
     @callback
-    def _on_measurement(self, m: Measurement) -> None:
+    def async_add_measurement(self, m: Measurement) -> None:
         if m.user_index not in (None, self.entry.data[CONF_USER_INDEX]):
             return
         ts = (
