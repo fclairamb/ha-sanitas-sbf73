@@ -51,6 +51,7 @@ SENSORS: tuple[Sbf73SensorDescription, ...] = (
     Sbf73SensorDescription(
         key="bmi",
         translation_key="bmi",
+        icon="mdi:human",
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement="kg/m²",
         suggested_display_precision=1,
@@ -59,6 +60,7 @@ SENSORS: tuple[Sbf73SensorDescription, ...] = (
     Sbf73SensorDescription(
         key="body_fat",
         translation_key="body_fat",
+        icon="mdi:scale-bathroom",
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=PERCENTAGE,
         suggested_display_precision=1,
@@ -67,6 +69,7 @@ SENSORS: tuple[Sbf73SensorDescription, ...] = (
     Sbf73SensorDescription(
         key="body_water",
         translation_key="body_water",
+        icon="mdi:water-percent",
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=PERCENTAGE,
         suggested_display_precision=1,
@@ -75,6 +78,7 @@ SENSORS: tuple[Sbf73SensorDescription, ...] = (
     Sbf73SensorDescription(
         key="muscle",
         translation_key="muscle",
+        icon="mdi:arm-flex",
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=PERCENTAGE,
         suggested_display_precision=1,
@@ -83,6 +87,7 @@ SENSORS: tuple[Sbf73SensorDescription, ...] = (
     Sbf73SensorDescription(
         key="bone_mass",
         translation_key="bone_mass",
+        icon="mdi:bone",
         device_class=SensorDeviceClass.WEIGHT,
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfMass.KILOGRAMS,
@@ -92,6 +97,7 @@ SENSORS: tuple[Sbf73SensorDescription, ...] = (
     Sbf73SensorDescription(
         key="bmr",
         translation_key="bmr",
+        icon="mdi:fire",
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement="kcal",
         suggested_display_precision=0,
@@ -100,6 +106,7 @@ SENSORS: tuple[Sbf73SensorDescription, ...] = (
     Sbf73SensorDescription(
         key="impedance",
         translation_key="impedance",
+        icon="mdi:omega",
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement="Ω",
         entity_category=EntityCategory.DIAGNOSTIC,
