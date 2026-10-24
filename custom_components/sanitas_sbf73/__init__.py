@@ -28,6 +28,10 @@ from .const import (
 )
 from .protocol import Measurement
 
+# Plausible adult BMI range, to reject weighings of someone else.
+BMI_MIN = 12
+BMI_MAX = 60
+
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.BUTTON, Platform.SENSOR]
@@ -151,6 +155,15 @@ class Sbf73Coordinator:
     @callback
     def async_add_measurement(self, m: Measurement) -> None:
         if m.user_index not in (None, self.entry.data[CONF_USER_INDEX]):
+            return
+        # The scale hands a weighing it can't match (a child, a guest) to the
+        # consented user, with our height: a 19 kg child gives a BMI of 6.
+        if m.bmi is not None and not BMI_MIN <= m.bmi <= BMI_MAX:
+            _LOGGER.info(
+                "Ignored a %s kg measurement (BMI %s): not this user, probably a guest",
+                m.weight_kg,
+                m.bmi,
+            )
             return
         ts = (
             m.timestamp.replace(tzinfo=dt_util.get_default_time_zone())
