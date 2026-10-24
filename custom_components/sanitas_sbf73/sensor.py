@@ -18,7 +18,6 @@ from homeassistant.const import (
     UnitOfMass,
 )
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import Sbf73ConfigEntry, Sbf73Coordinator
@@ -151,13 +150,8 @@ class Sbf73Sensor(RestoreSensor):
     ) -> None:
         self.coordinator = coordinator
         self.entity_description = description
-        self._attr_unique_id = f"{coordinator.address}_{description.key}"
-        self._attr_device_info = DeviceInfo(
-            connections={(CONNECTION_BLUETOOTH, coordinator.address)},
-            name=coordinator.name,
-            manufacturer="Sanitas",
-            model="SBF73",
-        )
+        self._attr_unique_id = f"{coordinator.uid}_{description.key}"
+        self._attr_device_info = coordinator.device_info
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()

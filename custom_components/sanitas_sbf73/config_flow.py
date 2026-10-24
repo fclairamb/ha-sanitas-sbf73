@@ -23,6 +23,7 @@ from homeassistant.helpers import selector
 from . import protocol as p
 from .bluez import PasskeyAgent
 from .client import ScaleError, Sbf73Client
+from . import scale_lock
 from .const import CONF_CONSENT_CODE, CONF_USER_INDEX, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -64,6 +65,8 @@ class Sbf73ConfigFlow(ConfigFlow, domain=DOMAIN):
         self._user_index: int | None = None
         self._consent_code: int | None = None
         self._measured = asyncio.Event()
+        self._initials = ""
+        self._locked = False
         self._measurements: list[p.Measurement] = []
 
     async def async_step_bluetooth(
@@ -71,6 +74,9 @@ class Sbf73ConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         await self.async_set_unique_id(discovery_info.address)
         self._abort_if_unique_id_configured()
+        if self._taken_indices(discovery_info.address):
+            # Already set up: more users are added with "Add entry".
+            return self.async_abort(reason="already_configured")
         self._address = discovery_info.address
         self._name = discovery_info.name
         self.context["title_placeholders"] = {"name": self._name}
@@ -81,12 +87,10 @@ class Sbf73ConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         if user_input is not None:
             self._address = user_input[CONF_ADDRESS]
-            await self.async_set_unique_id(self._address, raise_on_progress=False)
-            self._abort_if_unique_id_configured()
             return await self.async_step_wake()
-        configured = self._async_current_ids(include_ignore=False)
+        # A scale already set up is listed too: one entry per user on the scale.
         for info in async_discovered_service_info(self.hass, connectable=True):
-            if info.name == "SBF73" and info.address not in configured:
+            if info.name == "SBF73":
                 self._discovered[info.address] = f"{info.name} ({info.address})"
         if not self._discovered:
             return self.async_abort(reason="no_devices_found")
@@ -164,6 +168,9 @@ class Sbf73ConfigFlow(ConfigFlow, domain=DOMAIN):
             if user_input["user"] == NEW_USER:
                 return await self.async_step_new_user()
             self._user_index = int(user_input["user"])
+            self._initials = next(
+                (u.initials for u in self._users if u.index == self._user_index), ""
+            )
             try:
                 await self._async_ensure_connected()
                 await self._client.show_pin(self._user_index)
@@ -178,6 +185,7 @@ class Sbf73ConfigFlow(ConfigFlow, domain=DOMAIN):
                 label=f"P{u.index} {u.initials or '?'} ({u.birth_date}, {u.height_cm} cm)",
             )
             for u in self._users
+            if u.index not in self._taken_indices(self._address)
         ]
         if len(self._users) < p.MAX_USERS:
             new_label = "+ Nouvel utilisateur" if self.hass.config.language == "fr" else "+ New user"
@@ -248,6 +256,7 @@ class Sbf73ConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "register_failed"
             else:
                 self._user_index, self._consent_code = index, code
+                self._initials = user_input["initials"].upper()[:3]
                 return await self.async_step_measure()
         return self.async_show_form(
             step_id="new_user",
@@ -274,9 +283,14 @@ class Sbf73ConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         await self._async_disconnect()
-        self.hass.data.setdefault(DOMAIN, {})[self._address] = self._measurements
+        await self.async_set_unique_id(
+            f"{self._address}_{self._user_index}", raise_on_progress=False
+        )
+        self._abort_if_unique_id_configured()
+        key = (self._address, self._user_index)
+        self.hass.data.setdefault(DOMAIN, {})[key] = self._measurements
         return self.async_create_entry(
-            title=f"{self._name} P{self._user_index}",
+            title=f"{self._name} {self._initials or f'P{self._user_index}'}",
             data={
                 CONF_ADDRESS: self._address,
                 CONF_USER_INDEX: self._user_index,
@@ -288,6 +302,9 @@ class Sbf73ConfigFlow(ConfigFlow, domain=DOMAIN):
         ble_device = async_ble_device_from_address(self.hass, self._address, connectable=True)
         if ble_device is None:
             raise ScaleError("scale not in range, wake it up and retry")
+        if not self._locked:
+            await scale_lock(self._address).acquire()  # wait for a running sync
+            self._locked = True
         self._client = Sbf73Client(ble_device, self._on_measurement)
         assert self._agent is not None
         try:
@@ -341,6 +358,16 @@ class Sbf73ConfigFlow(ConfigFlow, domain=DOMAIN):
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug("Disconnect failed: %r", err)
             self._client = None
+        if self._locked:
+            scale_lock(self._address).release()
+            self._locked = False
+
+    def _taken_indices(self, address: str) -> set[int]:
+        return {
+            e.data[CONF_USER_INDEX]
+            for e in self._async_current_entries(include_ignore=False)
+            if e.data.get(CONF_ADDRESS) == address
+        }
 
     @callback
     def async_remove(self) -> None:

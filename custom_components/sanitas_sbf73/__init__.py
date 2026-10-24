@@ -12,6 +12,7 @@ from homeassistant.components import bluetooth
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ADDRESS, Platform
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
+from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceInfo
 from homeassistant.util import dt as dt_util
 
 from . import bluez
@@ -39,11 +40,20 @@ PLATFORMS = [Platform.BUTTON, Platform.SENSOR]
 
 type Sbf73ConfigEntry = ConfigEntry[Sbf73Coordinator]
 
+# One lock per scale, shared by its users (one config entry each) and the config
+# flow: the scale takes a single connection at a time.
+_SCALE_LOCKS: dict[str, asyncio.Lock] = {}
+
+
+def scale_lock(address: str) -> asyncio.Lock:
+    return _SCALE_LOCKS.setdefault(address, asyncio.Lock())
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: Sbf73ConfigEntry) -> bool:
     coordinator = Sbf73Coordinator(hass, entry)
     entry.runtime_data = coordinator
-    for m in hass.data.get(DOMAIN, {}).pop(coordinator.address, []):
+    key = (coordinator.address, entry.data[CONF_USER_INDEX])
+    for m in hass.data.get(DOMAIN, {}).pop(key, []):
         coordinator.async_add_measurement(m)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     # Unlike async_register_callback, this fires on every advertisement, even
@@ -83,13 +93,32 @@ class Sbf73Coordinator:
         self.measured_at: datetime | None = None
         self.battery: int | None = None
         self._listeners: list[CALLBACK_TYPE] = []
-        self._lock = asyncio.Lock()
+        self._lock = scale_lock(self.address)
+        # The first user keeps the ids it had before several users were supported.
+        self.uid = (
+            self.address
+            if entry.unique_id == self.address
+            else f"{self.address}_{entry.data[CONF_USER_INDEX]}"
+        )
         self._last_attempt = 0.0
         self._failures = 0
         self._handled_data: bytes | None = None
         self._last_service_data: bytes | None = None
         last = entry.data.get(CONF_LAST_TIMESTAMP)
         self._last_ts = dt_util.parse_datetime(last) if last else None
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        if self.uid == self.address:
+            return DeviceInfo(
+                connections={(CONNECTION_BLUETOOTH, self.address)},
+                name=self.name,
+                manufacturer="Sanitas",
+                model="SBF73",
+            )
+        return DeviceInfo(
+            identifiers={(DOMAIN, self.uid)}, name=self.name, manufacturer="Sanitas", model="SBF73"
+        )
 
     @callback
     def async_add_listener(self, update: CALLBACK_TYPE) -> Callable[[], None]:

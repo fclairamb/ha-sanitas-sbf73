@@ -31,6 +31,13 @@ setup does not work through ESPHome Bluetooth proxies.
 3. Pick your user on the scale (it then shows a 4-digit PIN to type), or create a new one. A new
    user needs a first weighing so the scale learns to recognize them.
 
+Each user of the scale (8 at most) is one entry: add the next one with "Add entry" on the
+integration page. Every user gets their own device and sensors.
+
+A weighing the scale can't match to a user (a child without a profile, a guest) may be handed to
+whoever is connected. The integration ignores a weighing whose BMI is out of 12 to 60 for the
+user's height.
+
 ## How syncing works
 
 Idle, the scale advertises all the time with an empty Weight Scale service data, and refuses
