@@ -23,6 +23,7 @@ from .const import (
     DOMAIN,
     IDLE_TIMEOUT_S,
     QUIET_S,
+    MAX_BACKOFF_S,
     SYNC_COOLDOWN_S,
     WSS_SERVICE_UUID,
 )
@@ -84,6 +85,8 @@ class Sbf73Coordinator:
         self._listeners: list[CALLBACK_TYPE] = []
         self._lock = asyncio.Lock()
         self._last_attempt = 0.0
+        self._failures = 0
+        self._handled_data: bytes | None = None
         self._last_service_data: bytes | None = None
         last = entry.data.get(CONF_LAST_TIMESTAMP)
         self._last_ts = dt_util.parse_datetime(last) if last else None
@@ -102,20 +105,27 @@ class Sbf73Coordinator:
         if data != self._last_service_data:
             _LOGGER.debug("Weight Scale service data: %s (RSSI %s)", data and data.hex(), info.rssi)
             self._last_service_data = data
-        if not data or self._lock.locked():
+        if not data:
+            self._handled_data = None  # back to idle: the next wake-up syncs again
             return
-        if time.monotonic() - self._last_attempt < SYNC_COOLDOWN_S:
+        # The service data can stay non-empty for hours (02 after a weighing the
+        # scale could not assign): sync once per value, not once per advertisement.
+        if data == self._handled_data or self._lock.locked():
+            return
+        backoff = min(SYNC_COOLDOWN_S * 2**self._failures, MAX_BACKOFF_S)
+        if time.monotonic() - self._last_attempt < backoff:
             return
         self.entry.async_create_background_task(
-            self.hass, self.async_sync(), f"sanitas_sbf73 sync {self.address}"
+            self.hass, self.async_sync(data), f"sanitas_sbf73 sync {self.address}"
         )
 
-    async def async_sync(self) -> None:
+    async def async_sync(self, data: bytes | None = None) -> None:
         """Connect, consent as our user, collect the stored measurements."""
         if self._lock.locked():
             return
         async with self._lock:
             self._last_attempt = time.monotonic()
+            self._failures += 1  # reset below once the session went through
             ble_device = bluetooth.async_ble_device_from_address(
                 self.hass, self.address, connectable=True
             )
@@ -146,6 +156,9 @@ class Sbf73Coordinator:
                     return
                 self.battery = await client.read_battery()
                 await client.wait_quiet(QUIET_S, IDLE_TIMEOUT_S)
+                self._failures = 0
+                if data is not None:
+                    self._handled_data = data
             except Exception as err:  # noqa: BLE001
                 _LOGGER.info("Sync with %s failed: %s", self.address, err)
             finally:
